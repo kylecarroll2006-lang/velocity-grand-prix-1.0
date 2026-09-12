@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f9cf0d259311c6a4a9d9373263b7e1bb, type: 3}
+  m_Name: FalconGTR
+  m_EditorClassIdentifier: Assembly-CSharp::CarStats
+  carName: FalconGT_R_Stats
+  acceleration: 65
+  brakeForce: 45
+  maxSpeed: 75
+  steeringPower: 80
+  normalGrip: 6
+  driftGrip: 1.6
+  driftTurnBoost: 1.15
+  minimumDriftSpeed: 8
+  minimumSidewaysSpeed: 2
+  downforce: 28
+  boostForce: 65
+  boostDuration: 1.25
+  boostedSpeedMultiplier: 1.21
