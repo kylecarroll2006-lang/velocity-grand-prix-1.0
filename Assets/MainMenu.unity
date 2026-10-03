@@ -1237,7 +1237,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8104d547e30599a47a36c5861df10e37, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MainMenu
-  raceSceneName: VelocityGrandPrix
+  mainMenuSceneName: MainMenu
+  raceSceneName: test2
   garageSceneName: Garage
 --- !u!4 &1589698108
 Transform:

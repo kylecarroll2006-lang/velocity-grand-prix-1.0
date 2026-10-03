@@ -1,3 +1,4 @@
+
 using TMPro;
 using UnityEngine;
 
@@ -18,6 +19,8 @@ public class LapManager : MonoBehaviour
     private bool hitCheckpoint;
     private bool raceFinished;
 
+    public bool IsRaceStarted => raceStarted;
+
     private void Start()
     {
         UpdateLapText();
@@ -36,23 +39,21 @@ public class LapManager : MonoBehaviour
     public void HitCheckpoint()
     {
         if (!raceStarted || raceFinished)
-        {
             return;
-        }
 
         hitCheckpoint = true;
+
+        Debug.Log("PLAYER CHECKPOINT HIT");
     }
 
     public void CrossStartFinish()
     {
         if (!raceStarted || raceFinished)
-        {
             return;
-        }
 
         if (!hitCheckpoint)
         {
-            Debug.Log("Player missed the checkpoint.");
+            Debug.Log("PLAYER START/FINISH REJECTED - CHECKPOINT NOT HIT");
             return;
         }
 
@@ -66,8 +67,8 @@ public class LapManager : MonoBehaviour
 
         if (currentLap > totalLaps)
         {
-            raceFinished = true;
             currentLap = totalLaps;
+            raceFinished = true;
 
             if (lapText != null)
             {

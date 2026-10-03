@@ -1,417 +1,484 @@
-using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Splines;
+using Unity.Mathematics;
 
 [RequireComponent(typeof(Rigidbody))]
 public class AICarController : MonoBehaviour
 {
-    [Header("References")]
     public SplineContainer trackSpline;
-    public Transform playerCar;
 
-    [Header("Spline Following")]
-    public float lookAheadAmount = 0.02f;
+    [Header("Base Speed")]
+    public float maxSpeed = 60f;
+    public float acceleration = 42f;
+    public float cornerSpeed = 38f;
 
-    [Header("Driving")]
-    public float acceleration = 45f;
-    public float maxSpeed = 55f;
-    public float steeringPower = 85f;
-    public float brakingPower = 40f;
-
-    [Header("Cornering")]
-    public float minimumCornerSpeedMultiplier = 0.45f;
-    public float cornerAngleStart = 5f;
-    public float cornerAngleMaximum = 45f;
+    [Header("Steering")]
+    public float steeringStrength = 4.5f;
+    public float lookAhead = 0.025f;
 
     [Header("Drifting")]
-    public float normalGrip = 14f;
-    public float driftGrip = 4f;
-    public float driftStartAngle = 24f;
-    public float driftTurnBoost = 1.2f;
+    public float driftStrength = 0.65f;
+    public float driftAngle = 25f;
 
-    [Header("Boost")]
-    public float boostForce = 65f;
-    public float boostedMaxSpeed = 68f;
-    public float boostDuration = 1.1f;
-    public float boostCooldown = 4f;
-    public float boostStraightAngle = 8f;
-    public float minimumBoostSpeed = 20f;
+    [Header("AI Boost")]
+    public float boostSpeed = 70f;
+    public float boostDuration = 0.8f;
+    public float boostCooldown = 6f;
 
-    [Header("Rubber Banding")]
-    public bool useRubberBanding = true;
+    [Header("Rubber Band")]
+    public Transform player;
+    public float catchUpDistance = 5f;
+    public float catchUpSpeed = 72f;
+    public float farBehindDistance = 18f;
 
-    [Tooltip("How far ahead the player must be before the AI gets help.")]
-    public float catchUpStartGap = 0.025f;
+    [Header("Passing")]
+    public float passingSpeed = 68f;
+    public float passingMinDistance = 3f;
+    public float passingMaxDistance = 12f;
 
-    [Tooltip("Gap where the AI receives its maximum catch-up bonus.")]
-    public float maximumCatchUpGap = 0.10f;
+    [Header("AI Personality")]
+    [Range(0f, 1f)]
+    public float aggression = 0.75f;
 
-    [Tooltip("Maximum speed increase when the AI is far behind.")]
-    public float maximumCatchUpSpeedMultiplier = 1.15f;
+    [Range(0f, 1f)]
+    public float consistency = 0.8f;
 
-    [Tooltip("Maximum acceleration increase when the AI is far behind.")]
-    public float maximumCatchUpAccelerationMultiplier = 1.12f;
-
-    [Tooltip("How much the AI slows down when far ahead.")]
-    public float aheadSpeedMultiplier = 0.94f;
-
-    [Header("Stability")]
-    public float downforce = 30f;
+    [Header("Runtime")]
+    public float personalitySpeed;
+    public float personalityAcceleration;
+    public float personalityCornerSpeed;
 
     private Rigidbody rb;
-    private float currentProgress;
+
+    private float progress;
     private bool drivingEnabled = true;
 
-    private bool isDrifting;
-    private bool isBoosting;
     private float boostTimer;
     private float boostCooldownTimer;
 
-    private float rubberBandSpeedMultiplier = 1f;
-    private float rubberBandAccelerationMultiplier = 1f;
+    private float randomFactor;
 
-    public bool IsDrifting => isDrifting;
-    public bool IsBoosting => isBoosting;
+    // =========================================================
+    // AWAKE
+    // =========================================================
 
     private void Awake()
     {
         rb = GetComponent<Rigidbody>();
-    }
 
-    private void Start()
-    {
-        FindNearestSplineProgress();
-    }
-
-    private void FixedUpdate()
-    {
-        if (!drivingEnabled || trackSpline == null)
+        if (rb == null)
         {
-            return;
-        }
-
-        UpdateNearestProgress();
-        UpdateRubberBanding();
-
-        float allowedSpeed = FollowSpline();
-
-        UpdateBoost();
-        ApplyGrip();
-        ApplyDownforce();
-
-        if (isBoosting)
-        {
-            rb.AddForce(
-                transform.forward * boostForce,
-                ForceMode.Acceleration
+            Debug.LogError(
+                "AI: Rigidbody is missing from " + gameObject.name
             );
 
-            allowedSpeed = boostedMaxSpeed;
-        }
-
-        allowedSpeed *= rubberBandSpeedMultiplier;
-
-        LimitSpeed(allowedSpeed);
-    }
-
-    private void FindNearestSplineProgress()
-    {
-        if (trackSpline == null)
-        {
-            Debug.LogError("AI Car: Track Spline is not assigned.");
             enabled = false;
             return;
         }
 
-        currentProgress = GetSplineProgress(transform.position);
+        rb.interpolation =
+            RigidbodyInterpolation.Interpolate;
     }
 
-    private void UpdateNearestProgress()
+    // =========================================================
+    // START
+    // =========================================================
+
+    private void Start()
     {
-        currentProgress = GetSplineProgress(transform.position);
+        randomFactor =
+            UnityEngine.Random.Range(-1f, 1f);
+
+        personalitySpeed =
+            maxSpeed *
+            (1f + randomFactor * 0.04f);
+
+        personalityAcceleration =
+            acceleration *
+            (1f + randomFactor * 0.10f);
+
+        personalityCornerSpeed =
+            cornerSpeed *
+            (1f + randomFactor * 0.08f);
+
+        aggression =
+            Mathf.Clamp01(
+                aggression +
+                UnityEngine.Random.Range(-0.15f, 0.15f)
+            );
+
+        if (trackSpline == null)
+        {
+            Debug.LogError(
+                "AI: Spline is NOT assigned on " +
+                gameObject.name
+            );
+        }
     }
 
-    private float GetSplineProgress(Vector3 worldPosition)
+    // =========================================================
+    // FIXED UPDATE
+    // =========================================================
+
+    private void FixedUpdate()
     {
+        if (!drivingEnabled)
+        {
+            return;
+        }
+
+        if (trackSpline == null)
+        {
+            return;
+        }
+
+        if (rb == null)
+        {
+            return;
+        }
+
+        FindSplinePosition();
+
+        Vector3 target =
+            GetTargetPoint();
+
+        Vector3 direction =
+            target -
+            transform.position;
+
+        direction.y = 0f;
+
+        if (direction.sqrMagnitude < 0.01f)
+        {
+            return;
+        }
+
+        direction.Normalize();
+
+        // =====================================================
+        // STEERING
+        // =====================================================
+
+        Vector3 currentForward =
+            transform.forward;
+
+        currentForward.y = 0f;
+
+        if (currentForward.sqrMagnitude < 0.01f)
+        {
+            return;
+        }
+
+        currentForward.Normalize();
+
+        float turnAmount =
+            Vector3.Angle(
+                currentForward,
+                direction
+            );
+
+        Quaternion targetRotation =
+            Quaternion.LookRotation(direction);
+
+        float steering =
+            steeringStrength +
+            aggression * 0.8f;
+
+        rb.MoveRotation(
+            Quaternion.Slerp(
+                rb.rotation,
+                targetRotation,
+                steering *
+                Time.fixedDeltaTime
+            )
+        );
+
+        // =====================================================
+        // BASE SPEED
+        // =====================================================
+
+        float targetSpeed =
+            personalitySpeed;
+
+        if (turnAmount > driftAngle)
+        {
+            targetSpeed =
+                personalityCornerSpeed;
+        }
+
+        // =====================================================
+        // PLAYER / RUBBER BAND / PASSING
+        // =====================================================
+
+        if (player != null)
+        {
+            float playerDistance =
+                Vector3.Distance(
+                    transform.position,
+                    player.position
+                );
+
+            // CATCH UP
+            if (playerDistance >
+                catchUpDistance)
+            {
+                targetSpeed =
+                    Mathf.Max(
+                        targetSpeed,
+                        catchUpSpeed
+                    );
+            }
+
+            // PASSING
+            if (playerDistance >
+                    passingMinDistance &&
+                playerDistance <
+                    passingMaxDistance)
+            {
+                targetSpeed =
+                    Mathf.Max(
+                        targetSpeed,
+                        passingSpeed
+                    );
+            }
+
+            // FAR BEHIND = BOOST
+            if (playerDistance >
+                farBehindDistance)
+            {
+                StartBoost();
+            }
+        }
+
+        // =====================================================
+        // BOOST
+        // =====================================================
+
+        if (boostTimer > 0f)
+        {
+            boostTimer -=
+                Time.fixedDeltaTime;
+
+            targetSpeed =
+                boostSpeed;
+        }
+
+        if (boostCooldownTimer > 0f)
+        {
+            boostCooldownTimer -=
+                Time.fixedDeltaTime;
+        }
+
+        // =====================================================
+        // ACCELERATION
+        // =====================================================
+
+        float currentSpeed =
+            rb.linearVelocity.magnitude;
+
+        float newSpeed =
+            Mathf.MoveTowards(
+                currentSpeed,
+                targetSpeed,
+                personalityAcceleration *
+                Time.fixedDeltaTime
+            );
+
+        // =====================================================
+        // DRIFT
+        // =====================================================
+
+        if (turnAmount > driftAngle)
+        {
+            float drift =
+                Mathf.Clamp01(
+                    turnAmount /
+                    90f
+                );
+
+            float aiDrift =
+                driftStrength *
+                (
+                    1f +
+                    aggression * 0.35f
+                );
+
+            Vector3 velocity =
+                transform.forward *
+                newSpeed;
+
+            velocity +=
+                transform.right *
+                drift *
+                aiDrift *
+                newSpeed;
+
+            rb.linearVelocity =
+                velocity;
+        }
+        else
+        {
+            rb.linearVelocity =
+                transform.forward *
+                newSpeed;
+        }
+
+        // =====================================================
+        // HARD SPEED LIMIT
+        // =====================================================
+
+        float maxAllowedSpeed =
+            personalitySpeed;
+
+        if (player != null)
+        {
+            float distance =
+                Vector3.Distance(
+                    transform.position,
+                    player.position
+                );
+
+            // Catch-up speed
+            if (distance >
+                catchUpDistance)
+            {
+                maxAllowedSpeed =
+                    Mathf.Max(
+                        maxAllowedSpeed,
+                        catchUpSpeed
+                    );
+            }
+
+            // Passing speed
+            if (distance >
+                    passingMinDistance &&
+                distance <
+                    passingMaxDistance)
+            {
+                maxAllowedSpeed =
+                    Mathf.Max(
+                        maxAllowedSpeed,
+                        passingSpeed
+                    );
+            }
+        }
+
+        // Boost speed
+        if (boostTimer > 0f)
+        {
+            maxAllowedSpeed =
+                boostSpeed;
+        }
+
+        if (rb.linearVelocity.magnitude >
+            maxAllowedSpeed)
+        {
+            rb.linearVelocity =
+                rb.linearVelocity.normalized *
+                maxAllowedSpeed;
+        }
+    }
+
+    // =========================================================
+    // FIND SPLINE POSITION
+    // =========================================================
+
+    private void FindSplinePosition()
+    {
+        if (trackSpline == null)
+        {
+            return;
+        }
+
         Vector3 localPosition =
-            trackSpline.transform.InverseTransformPoint(worldPosition);
+            trackSpline.transform.InverseTransformPoint(
+                transform.position
+            );
 
         SplineUtility.GetNearestPoint(
             trackSpline.Spline,
+
             new float3(
                 localPosition.x,
                 localPosition.y,
                 localPosition.z
             ),
-            out _,
-            out float progress
-        );
 
-        return progress;
+            out float3 nearestPoint,
+            out progress
+        );
     }
 
-    private void UpdateRubberBanding()
+    // =========================================================
+    // TARGET POINT
+    // =========================================================
+
+    private Vector3 GetTargetPoint()
     {
-        rubberBandSpeedMultiplier = 1f;
-        rubberBandAccelerationMultiplier = 1f;
-
-        if (!useRubberBanding || playerCar == null)
+        if (trackSpline == null)
         {
-            return;
+            return transform.position;
         }
 
-        float playerProgress = GetSplineProgress(playerCar.position);
-
-        // Positive means the player is ahead.
-        // Negative means the AI is ahead.
-        float signedGap =
-            Mathf.DeltaAngle(
-                currentProgress * 360f,
-                playerProgress * 360f
-            ) / 360f;
-
-        if (signedGap > catchUpStartGap)
-        {
-            float catchUpAmount = Mathf.InverseLerp(
-                catchUpStartGap,
-                maximumCatchUpGap,
-                signedGap
+        float targetProgress =
+            Mathf.Repeat(
+                progress +
+                lookAhead,
+                1f
             );
 
-            rubberBandSpeedMultiplier = Mathf.Lerp(
-                1f,
-                maximumCatchUpSpeedMultiplier,
-                catchUpAmount
-            );
-
-            rubberBandAccelerationMultiplier = Mathf.Lerp(
-                1f,
-                maximumCatchUpAccelerationMultiplier,
-                catchUpAmount
-            );
-        }
-        else if (signedGap < -catchUpStartGap)
-        {
-            float slowDownAmount = Mathf.InverseLerp(
-                catchUpStartGap,
-                maximumCatchUpGap,
-                Mathf.Abs(signedGap)
-            );
-
-            rubberBandSpeedMultiplier = Mathf.Lerp(
-                1f,
-                aheadSpeedMultiplier,
-                slowDownAmount
-            );
-        }
+        return trackSpline.EvaluatePosition(
+            targetProgress
+        );
     }
 
-    private float FollowSpline()
-    {
-        float targetProgress = currentProgress + lookAheadAmount;
+    // =========================================================
+    // BOOST
+    // =========================================================
 
-        if (targetProgress >= 1f)
-        {
-            targetProgress -= 1f;
-        }
-
-        float3 targetPoint =
-            trackSpline.EvaluatePosition(targetProgress);
-
-        Vector3 targetPosition = new Vector3(
-            targetPoint.x,
-            transform.position.y,
-            targetPoint.z
-        );
-
-        Vector3 directionToTarget =
-            targetPosition - transform.position;
-
-        if (directionToTarget.sqrMagnitude < 0.01f)
-        {
-            return maxSpeed;
-        }
-
-        directionToTarget.Normalize();
-
-        float signedAngle = Vector3.SignedAngle(
-            transform.forward,
-            directionToTarget,
-            Vector3.up
-        );
-
-        float absoluteAngle = Mathf.Abs(signedAngle);
-
-        isDrifting =
-            absoluteAngle >= driftStartAngle &&
-            rb.linearVelocity.magnitude > 8f;
-
-        float steeringInput = Mathf.Clamp(
-            signedAngle / 45f,
-            -1f,
-            1f
-        );
-
-        float speedFactor = Mathf.Clamp01(
-            rb.linearVelocity.magnitude / 4f
-        );
-
-        float turnAmount =
-            steeringInput *
-            steeringPower *
-            speedFactor *
-            Time.fixedDeltaTime;
-
-        if (isDrifting)
-        {
-            turnAmount *= driftTurnBoost;
-        }
-
-        rb.MoveRotation(
-            rb.rotation *
-            Quaternion.Euler(0f, turnAmount, 0f)
-        );
-
-        float cornerAmount = Mathf.InverseLerp(
-            cornerAngleStart,
-            cornerAngleMaximum,
-            absoluteAngle
-        );
-
-        float allowedSpeed = Mathf.Lerp(
-            maxSpeed,
-            maxSpeed * minimumCornerSpeedMultiplier,
-            cornerAmount
-        );
-
-        float forwardSpeed = Vector3.Dot(
-            rb.linearVelocity,
-            transform.forward
-        );
-
-        float activeAcceleration =
-            acceleration * rubberBandAccelerationMultiplier;
-
-        if (forwardSpeed < allowedSpeed)
-        {
-            rb.AddForce(
-                transform.forward * activeAcceleration,
-                ForceMode.Acceleration
-            );
-        }
-        else
-        {
-            rb.AddForce(
-                -transform.forward * brakingPower,
-                ForceMode.Acceleration
-            );
-        }
-
-        TryStartBoost(absoluteAngle);
-
-        return allowedSpeed;
-    }
-
-    private void TryStartBoost(float cornerAngle)
-    {
-        if (isBoosting || boostCooldownTimer > 0f)
-        {
-            return;
-        }
-
-        bool onStraight =
-            cornerAngle <= boostStraightAngle;
-
-        bool movingFastEnough =
-            rb.linearVelocity.magnitude >= minimumBoostSpeed;
-
-        if (onStraight && movingFastEnough)
-        {
-            isBoosting = true;
-            boostTimer = boostDuration;
-            boostCooldownTimer = boostCooldown;
-        }
-    }
-
-    private void UpdateBoost()
+    private void StartBoost()
     {
         if (boostCooldownTimer > 0f)
         {
-            boostCooldownTimer -= Time.fixedDeltaTime;
-        }
-
-        if (!isBoosting)
-        {
             return;
         }
 
-        boostTimer -= Time.fixedDeltaTime;
+        boostTimer =
+            boostDuration;
 
-        if (boostTimer <= 0f)
-        {
-            isBoosting = false;
-        }
+        boostCooldownTimer =
+            boostCooldown;
     }
 
-    private void ApplyGrip()
-    {
-        Vector3 sidewaysVelocity =
-            Vector3.Dot(
-                rb.linearVelocity,
-                transform.right
-            ) * transform.right;
-
-        float activeGrip =
-            isDrifting ? driftGrip : normalGrip;
-
-        rb.AddForce(
-            -sidewaysVelocity * activeGrip,
-            ForceMode.Acceleration
-        );
-    }
-
-    private void ApplyDownforce()
-    {
-        rb.AddForce(
-            -transform.up * downforce,
-            ForceMode.Acceleration
-        );
-    }
-
-    private void LimitSpeed(float allowedSpeed)
-    {
-        Vector3 flatVelocity = new Vector3(
-            rb.linearVelocity.x,
-            0f,
-            rb.linearVelocity.z
-        );
-
-        if (flatVelocity.magnitude <= allowedSpeed)
-        {
-            return;
-        }
-
-        Vector3 limitedVelocity =
-            flatVelocity.normalized * allowedSpeed;
-
-        rb.linearVelocity = new Vector3(
-            limitedVelocity.x,
-            rb.linearVelocity.y,
-            limitedVelocity.z
-        );
-    }
+    // =========================================================
+    // ENABLE / DISABLE
+    // =========================================================
 
     public void SetDrivingEnabled(bool enabled)
     {
-        drivingEnabled = enabled;
+        drivingEnabled =
+            enabled;
 
-        if (!enabled)
+        // IMPORTANT:
+        // RaceCountdown can call this before Start(),
+        // so make sure Rigidbody exists first.
+
+        if (!enabled && rb != null)
         {
-            isBoosting = false;
-            isDrifting = false;
+            rb.linearVelocity =
+                Vector3.zero;
 
-            rb.linearVelocity = Vector3.zero;
-            rb.angularVelocity = Vector3.zero;
+            rb.angularVelocity =
+                Vector3.zero;
         }
+    }
+
+    // =========================================================
+    // SPLINE PROGRESS
+    // =========================================================
+
+    public float GetSplineProgress()
+    {
+        return progress;
     }
 }

@@ -4,23 +4,20 @@ using UnityEngine.InputSystem;
 [RequireComponent(typeof(Rigidbody))]
 public class ArcadeCarController : MonoBehaviour
 {
-    [Header("Car Stats")]
-    public CarStats carStats;
-
-    [Header("Driving")]
     public float acceleration = 60f;
-    public float brakeForce = 45f;
+    public float reverseAcceleration = 45f;
+    public float brakeForce = 75f;
     public float maxSpeed = 85f;
+    public float maxReverseSpeed = 25f;
     public float steeringPower = 80f;
 
-    [Header("Drifting")]
     public float normalGrip = 14f;
     public float driftGrip = 4f;
     public float driftTurnBoost = 1.15f;
+
     public float minimumDriftSpeed = 8f;
     public float minimumSidewaysSpeed = 2f;
 
-    [Header("Stability")]
     public float downforce = 28f;
 
     private Rigidbody rb;
@@ -34,16 +31,18 @@ public class ArcadeCarController : MonoBehaviour
     private bool drivingEnabled = true;
 
     public bool IsDrifting { get; private set; }
-    public bool IsNitroPressed => nitroButtonHeld;
+
+    public bool IsNitroPressed
+    {
+        get { return nitroButtonHeld; }
+    }
 
     public float CurrentSpeed
     {
         get
         {
             if (rb == null)
-            {
                 return 0f;
-            }
 
             return rb.linearVelocity.magnitude;
         }
@@ -52,15 +51,12 @@ public class ArcadeCarController : MonoBehaviour
     private void Awake()
     {
         rb = GetComponent<Rigidbody>();
-        ApplyCarStats();
     }
 
     private void Update()
     {
         if (!drivingEnabled)
-        {
             return;
-        }
 
         ReadKeyboard();
         ReadController();
@@ -69,9 +65,7 @@ public class ArcadeCarController : MonoBehaviour
     private void FixedUpdate()
     {
         if (!drivingEnabled)
-        {
             return;
-        }
 
         Drive();
         Steer();
@@ -80,65 +74,35 @@ public class ArcadeCarController : MonoBehaviour
         LimitSpeed();
     }
 
-    private void ApplyCarStats()
-    {
-        if (carStats == null)
-        {
-            return;
-        }
-
-        acceleration = carStats.acceleration;
-        brakeForce = carStats.brakeForce;
-        maxSpeed = carStats.maxSpeed;
-        steeringPower = carStats.steeringPower;
-
-        normalGrip = carStats.normalGrip;
-        driftGrip = carStats.driftGrip;
-        driftTurnBoost = carStats.driftTurnBoost;
-        minimumDriftSpeed = carStats.minimumDriftSpeed;
-        minimumSidewaysSpeed = carStats.minimumSidewaysSpeed;
-
-        downforce = carStats.downforce;
-    }
-
     private void ReadKeyboard()
     {
         steerInput = 0f;
         accelerateInput = 0f;
         brakeInput = 0f;
+
         driftButtonHeld = false;
         nitroButtonHeld = false;
 
         if (Keyboard.current == null)
-        {
             return;
-        }
 
         if (Keyboard.current.aKey.isPressed)
-        {
-            steerInput -= 1f;
-        }
+            steerInput = -1f;
 
         if (Keyboard.current.dKey.isPressed)
-        {
-            steerInput += 1f;
-        }
+            steerInput = 1f;
 
         if (Keyboard.current.wKey.isPressed)
-        {
             accelerateInput = 1f;
-        }
 
         if (Keyboard.current.sKey.isPressed)
-        {
             brakeInput = 1f;
-        }
 
-        driftButtonHeld =
-            Keyboard.current.spaceKey.isPressed;
+        if (Keyboard.current.spaceKey.isPressed)
+            driftButtonHeld = true;
 
-        nitroButtonHeld =
-            Keyboard.current.leftShiftKey.isPressed;
+        if (Keyboard.current.leftShiftKey.isPressed)
+            nitroButtonHeld = true;
     }
 
     private void ReadController()
@@ -146,69 +110,55 @@ public class ArcadeCarController : MonoBehaviour
         Gamepad gamepad = Gamepad.current;
 
         if (gamepad == null)
-        {
             return;
-        }
 
-        float controllerSteer =
-            gamepad.leftStick.x.ReadValue();
+        float steering = gamepad.leftStick.x.ReadValue();
+        float throttle = gamepad.rightTrigger.ReadValue();
+        float brake = gamepad.leftTrigger.ReadValue();
 
-        float controllerAcceleration =
-            gamepad.rightTrigger.ReadValue();
+        if (Mathf.Abs(steering) > Mathf.Abs(steerInput))
+            steerInput = steering;
 
-        float controllerBrake =
-            gamepad.leftTrigger.ReadValue();
+        if (throttle > accelerateInput)
+            accelerateInput = throttle;
 
-        if (Mathf.Abs(controllerSteer) > Mathf.Abs(steerInput))
-        {
-            steerInput = controllerSteer;
-        }
+        if (brake > brakeInput)
+            brakeInput = brake;
 
-        if (controllerAcceleration > accelerateInput)
-        {
-            accelerateInput = controllerAcceleration;
-        }
-
-        if (controllerBrake > brakeInput)
-        {
-            brakeInput = controllerBrake;
-        }
-
-        // B button = drift
         if (gamepad.buttonEast.isPressed)
-        {
             driftButtonHeld = true;
-        }
 
-        // A button = nitro
         if (gamepad.buttonSouth.isPressed)
-        {
             nitroButtonHeld = true;
-        }
     }
 
     private void Drive()
     {
-        float forwardSpeed =
-            Vector3.Dot(
-                rb.linearVelocity,
-                transform.forward
-            );
+        float forwardSpeed = Vector3.Dot(
+            rb.linearVelocity,
+            transform.forward
+        );
 
+        // FORWARD
         if (accelerateInput > 0f)
         {
-            rb.AddForce(
-                transform.forward *
-                acceleration *
-                accelerateInput,
-                ForceMode.Acceleration
-            );
+            if (forwardSpeed < maxSpeed)
+            {
+                rb.AddForce(
+                    transform.forward *
+                    acceleration *
+                    accelerateInput,
+                    ForceMode.Acceleration
+                );
+            }
         }
 
+        // REVERSE
         if (brakeInput > 0f)
         {
-            if (forwardSpeed > 2f)
+            if (forwardSpeed > 0.5f)
             {
+                // Brake the car while moving forward
                 rb.AddForce(
                     -transform.forward *
                     brakeForce *
@@ -218,43 +168,55 @@ public class ArcadeCarController : MonoBehaviour
             }
             else
             {
-                float reverseForce =
-                    acceleration * 0.7f;
-
+                // Reverse
                 rb.AddForce(
                     -transform.forward *
-                    reverseForce *
+                    reverseAcceleration *
                     brakeInput,
                     ForceMode.Acceleration
                 );
             }
         }
     }
-
     private void Steer()
     {
-        float speedFactor =
-            Mathf.Clamp01(
-                rb.linearVelocity.magnitude / 5f
-            );
+        if (Mathf.Abs(steerInput) < 0.01f)
+            return;
 
-        float turnAmount =
-            steerInput *
-            steeringPower *
-            speedFactor *
-            Time.fixedDeltaTime;
 
-        if (driftButtonHeld)
-        {
-            turnAmount *= driftTurnBoost;
-        }
+float forwardSpeed = Vector3.Dot(
+    rb.linearVelocity,
+    transform.forward
+);
 
-        transform.Rotate(
+        if (Mathf.Abs(forwardSpeed) < 0.1f)
+            return;
+
+        float direction = forwardSpeed >= 0f ? 1f : -1f;
+
+        // Strong steering at low speed, slightly controlled at high speed
+        float speedFactor = Mathf.Lerp(
+            1.0f,
+            0.75f,
+            Mathf.Clamp01(Mathf.Abs(forwardSpeed) / maxSpeed)
+        );
+
+        float turnSpeed =
+            steeringPower * speedFactor;
+
+        Quaternion turnRotation = Quaternion.Euler(
             0f,
-            turnAmount,
+            steerInput * turnSpeed * direction * Time.fixedDeltaTime,
             0f
         );
-    }
+
+        rb.MoveRotation(
+            rb.rotation * turnRotation
+        );
+
+
+}
+
 
     private void ApplyGrip()
     {
@@ -264,23 +226,23 @@ public class ArcadeCarController : MonoBehaviour
                 transform.right
             ) * transform.right;
 
-        float grip =
-            driftButtonHeld
-                ? driftGrip
-                : normalGrip;
+        float grip = normalGrip;
+
+        if (driftButtonHeld)
+            grip = driftGrip;
 
         rb.AddForce(
-            -sidewaysVelocity * grip,
+            -sidewaysVelocity *
+            grip,
             ForceMode.Acceleration
         );
 
-        float forwardSpeed =
-            Mathf.Abs(
-                Vector3.Dot(
-                    rb.linearVelocity,
-                    transform.forward
-                )
-            );
+        float forwardSpeed = Mathf.Abs(
+            Vector3.Dot(
+                rb.linearVelocity,
+                transform.forward
+            )
+        );
 
         IsDrifting =
             driftButtonHeld &&
@@ -291,67 +253,68 @@ public class ArcadeCarController : MonoBehaviour
     private void ApplyDownforce()
     {
         rb.AddForce(
-            -transform.up * downforce,
+            -transform.up *
+            downforce,
             ForceMode.Acceleration
         );
     }
 
     private void LimitSpeed()
     {
-        float allowedSpeed = maxSpeed;
+        Vector3 velocity = rb.linearVelocity;
 
-        NitroSystem nitroSystem =
-            GetComponent<NitroSystem>();
+        float forwardSpeed = Vector3.Dot(
+            velocity,
+            transform.forward
+        );
 
-        if (
-            nitroSystem != null &&
-            nitroSystem.IsBoosting
-        )
+        if (forwardSpeed > maxSpeed)
         {
-            float boostMultiplier = 1.21f;
+            Vector3 forwardVelocity =
+                transform.forward *
+                maxSpeed;
 
-            if (carStats != null)
-            {
-                boostMultiplier =
-                    carStats.boostedSpeedMultiplier;
-            }
+            Vector3 sidewaysVelocity =
+                transform.right *
+                Vector3.Dot(
+                    velocity,
+                    transform.right
+                );
 
-            allowedSpeed =
-                maxSpeed * boostMultiplier;
+            rb.linearVelocity =
+                forwardVelocity +
+                sidewaysVelocity +
+                Vector3.up * velocity.y;
         }
 
-        Vector3 flatVelocity =
-            new Vector3(
-                rb.linearVelocity.x,
-                0f,
-                rb.linearVelocity.z
-            );
-
-        if (flatVelocity.magnitude <= allowedSpeed)
+        if (forwardSpeed < -maxReverseSpeed)
         {
-            return;
+            Vector3 reverseVelocity =
+                -transform.forward *
+                maxReverseSpeed;
+
+            Vector3 sidewaysVelocity =
+                transform.right *
+                Vector3.Dot(
+                    velocity,
+                    transform.right
+                );
+
+            rb.linearVelocity =
+                reverseVelocity +
+                sidewaysVelocity +
+                Vector3.up * velocity.y;
         }
-
-        Vector3 limitedVelocity =
-            flatVelocity.normalized * allowedSpeed;
-
-        rb.linearVelocity =
-            new Vector3(
-                limitedVelocity.x,
-                rb.linearVelocity.y,
-                limitedVelocity.z
-            );
     }
 
     public void ApplyNitroForce(float boostForce)
     {
         if (!drivingEnabled)
-        {
             return;
-        }
 
         rb.AddForce(
-            transform.forward * boostForce,
+            transform.forward *
+            boostForce,
             ForceMode.Acceleration
         );
     }
@@ -360,13 +323,15 @@ public class ArcadeCarController : MonoBehaviour
     {
         drivingEnabled = enabled;
 
-        if (!drivingEnabled)
+        if (!enabled)
         {
             steerInput = 0f;
             accelerateInput = 0f;
             brakeInput = 0f;
+
             driftButtonHeld = false;
             nitroButtonHeld = false;
+
             IsDrifting = false;
 
             rb.linearVelocity = Vector3.zero;

@@ -17,5 +17,8 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/VelocityGrandPrix.unity
     guid: affb4437f09a9e449ba16c56285dd4aa
+  - enabled: 1
+    path: Assets/track.unity
+    guid: 1e5292bdc3873084cb7f9e105da4e9ed
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 989b4e3338a94cd46a7f35b58b4ac43f, type: 3}

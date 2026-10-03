@@ -19,6 +19,10 @@ public class RaceFinishManager : MonoBehaviour
 
     private bool raceFinished;
 
+    // =========================================================
+    // START
+    // =========================================================
+
     private void Start()
     {
         raceFinished = false;
@@ -29,39 +33,77 @@ public class RaceFinishManager : MonoBehaviour
         }
     }
 
+    // =========================================================
+    // PLAYER FINISHED
+    // =========================================================
+
     public void PlayerFinished()
     {
-        FinishRace("FALCON GT-R WINS!");
+        if (raceFinished)
+            return;
+
+        FinishRace(
+            "FALCON GT-R WINS!"
+        );
     }
+
+    // =========================================================
+    // AI FINISHED
+    // =========================================================
 
     public void AIFinished()
     {
-        FinishRace("VORTEX XR WINS!");
+        if (raceFinished)
+            return;
+
+        FinishRace(
+            "VORTEX XR WINS!"
+        );
     }
 
-    private void FinishRace(string winnerMessage)
+    // =========================================================
+    // FINISH RACE
+    // =========================================================
+
+    private void FinishRace(
+        string winnerMessage
+    )
     {
         if (raceFinished)
-        {
             return;
-        }
 
         raceFinished = true;
+
+        // =====================================================
+        // STOP PLAYER
+        // =====================================================
 
         if (playerCar != null)
         {
             playerCar.SetDrivingEnabled(false);
         }
 
+        // =====================================================
+        // STOP AI
+        // =====================================================
+
         if (aiCar != null)
         {
             aiCar.SetDrivingEnabled(false);
         }
 
+        // =====================================================
+        // STOP TIMER
+        // =====================================================
+
         if (lapTimer != null)
         {
             lapTimer.StopTimer();
         }
+
+        // =====================================================
+        // SHOW FINISH PANEL
+        // =====================================================
 
         if (finishPanel != null)
         {
@@ -70,13 +112,19 @@ public class RaceFinishManager : MonoBehaviour
 
         if (finishTitle != null)
         {
-            finishTitle.text = "FINISH!";
+            finishTitle.text =
+                "FINISH!";
         }
 
         if (winnerText != null)
         {
-            winnerText.text = winnerMessage;
+            winnerText.text =
+                winnerMessage;
         }
+
+        // =====================================================
+        // RACE TIME
+        // =====================================================
 
         if (raceTimeText != null)
         {
@@ -89,6 +137,10 @@ public class RaceFinishManager : MonoBehaviour
                 );
         }
 
+        // =====================================================
+        // BEST LAP
+        // =====================================================
+
         if (bestLapText != null)
         {
             bestLapText.text =
@@ -99,5 +151,33 @@ public class RaceFinishManager : MonoBehaviour
                         : "--:--.--"
                 );
         }
+    }
+
+    // =========================================================
+    // RESET
+    // =========================================================
+
+    public void ResetRace()
+    {
+        raceFinished = false;
+
+        if (finishPanel != null)
+        {
+            finishPanel.SetActive(false);
+        }
+
+        if (winnerText != null)
+        {
+            winnerText.text = "";
+        }
+    }
+
+    // =========================================================
+    // CHECK FINISHED
+    // =========================================================
+
+    public bool IsRaceFinished()
+    {
+        return raceFinished;
     }
 }

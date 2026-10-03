@@ -5534,7 +5534,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::StartFinishTrigger
   lapManager: {fileID: 1002481107}
-  aiLapTrackers: []
 --- !u!1 &716295756
 GameObject:
   m_ObjectHideFlags: 0
@@ -14293,60 +14292,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1349597351}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &1684196916
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1684196918}
-  - component: {fileID: 1684196917}
-  m_Layer: 0
-  m_Name: 'TrackBarrierGenerator '
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &1684196917
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1684196916}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e1754123a98e84f41b0a303dbb919cff, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::TrackBarrierGenerator
-  waypointParent: {fileID: 1349597351}
-  barrierPrefab: {fileID: 1349597349}
-  roadHalfWidth: 7
-  barrierSpacing: 2.5
-  barrierOffset: 0.5
-  heightOffset: 0
-  generateLeftBarrier: 1
-  generateRightBarrier: 0
-  closeLoop: 1
-  barrierParent: {fileID: 1631365777}
---- !u!4 &1684196918
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1684196916}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 444.24893, y: 0.00005, z: -104.12321}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1689372840 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: 4c3a60f554d44ce468ca6017d865507a, type: 3}
@@ -17558,4 +17503,3 @@ SceneRoots:
   - {fileID: 325177360}
   - {fileID: 1768384767}
   - {fileID: 1021298089}
-  - {fileID: 1684196918}

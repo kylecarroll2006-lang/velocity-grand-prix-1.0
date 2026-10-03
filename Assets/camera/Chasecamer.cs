@@ -4,34 +4,93 @@ public class ChaseCamera : MonoBehaviour
 {
     public Transform target;
 
-    public Vector3 offset = new Vector3(0f, 3f, -6f);
 
-    public float followSpeed = 8f;
-    public float rotationSpeed = 8f;
+[Header("Position")]
+    public float distance = 7f;
+    public float height = 2.2f;
+    public float positionSmooth = 15f;
 
-    void LateUpdate()
+    [Header("Rotation")]
+    public float rotationSmooth = 10f;
+
+    [Header("Look")]
+    public float lookAhead = 2f;
+    public float lookHeight = 0.8f;
+
+    private Rigidbody targetRb;
+
+    private void Start()
+    {
+        if (target != null)
+            targetRb = target.GetComponent<Rigidbody>();
+
+        if (targetRb != null)
+            targetRb.interpolation = RigidbodyInterpolation.Interpolate;
+    }
+
+    private void LateUpdate()
     {
         if (target == null)
             return;
 
-        Vector3 desiredPosition = target.position + target.TransformDirection(offset);
+        // Use the car's interpolated rotation
+        Vector3 forward = target.forward;
+        forward.y = 0f;
 
+        if (forward.sqrMagnitude < 0.001f)
+            return;
+
+        forward.Normalize();
+
+        // Desired camera position
+        Vector3 desiredPosition =
+            target.position
+            - forward * distance
+            + Vector3.up * height;
+
+        // Smooth toward the position
         transform.position = Vector3.Lerp(
             transform.position,
             desiredPosition,
-            followSpeed * Time.deltaTime
+            positionSmooth * Time.deltaTime
         );
 
-        Vector3 lookTarget = target.position + Vector3.up * 1f;
+        // Force the camera to NEVER exceed the desired distance
+        Vector3 flatOffset = transform.position - target.position;
+        flatOffset.y = 0f;
 
-        Quaternion desiredRotation = Quaternion.LookRotation(
-            lookTarget - transform.position
-        );
+        if (flatOffset.sqrMagnitude > 0.001f)
+        {
+            flatOffset =
+                flatOffset.normalized * distance;
 
-        transform.rotation = Quaternion.Slerp(
-            transform.rotation,
-            desiredRotation,
-            rotationSpeed * Time.deltaTime
-        );
+            transform.position =
+                target.position
+                + flatOffset
+                + Vector3.up * height;
+        }
+
+        // Look ahead of the car
+        Vector3 lookPosition =
+            target.position
+            + forward * lookAhead
+            + Vector3.up * lookHeight;
+
+        Vector3 direction =
+            lookPosition - transform.position;
+
+        if (direction.sqrMagnitude > 0.001f)
+        {
+            Quaternion desiredRotation =
+                Quaternion.LookRotation(direction);
+
+            transform.rotation = Quaternion.Slerp(
+                transform.rotation,
+                desiredRotation,
+                rotationSmooth * Time.deltaTime
+            );
+        }
     }
+
+
 }
